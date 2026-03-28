@@ -47,9 +47,9 @@ function webkernelCodename(int $major): string
     return match ($major) {
         1       => 'Waterfall',
         2       => 'Greenfields',
-        3       => 'Horizon',
-        4       => 'Stonebridge',
-        5       => 'Evergreen',
+        3       => 'Forester',
+        4       => 'Wildlife',
+        5       => 'Universe',
         default => 'Unknown',
     };
 }
