@@ -1439,15 +1439,15 @@ final class InstallerTheme
 {
     private function __construct(
         // ── Dark mode ──────────────────────────────────────────────────────────
-        public readonly string $darkBg        = '#030712',   // gray-950
-        public readonly string $darkSurface   = '#111827',   // gray-900
-        public readonly string $darkSurface2  = '#1f2937',   // gray-800
-        public readonly string $darkSurface3  = '#374151',   // gray-700
-        public readonly string $darkBorder    = '#1f2937',   // gray-800
-        public readonly string $darkBorder2   = '#374151',   // gray-700
-        public readonly string $darkText      = '#f9fafb',   // gray-50
-        public readonly string $darkTextMuted = '#9ca3af',   // gray-400
-        public readonly string $darkTextDim   = '#4b5563',   // gray-600
+        public readonly string $darkBg        = '#000000',   // match landing
+        public readonly string $darkSurface   = '#0d0d0d',   // match landing card
+        public readonly string $darkSurface2  = '#141414',   // neutral dark
+        public readonly string $darkSurface3  = '#1f1f1f',   // neutral mid
+        public readonly string $darkBorder    = '#1a1a1a',   // match landing border
+        public readonly string $darkBorder2   = '#2a2a2a',   // neutral border-2
+        public readonly string $darkText      = '#d0d0d0',   // match landing text
+        public readonly string $darkTextMuted = '#888888',   // match landing --dim
+        public readonly string $darkTextDim   = '#555555',   // match landing --muted
         // ── Light mode ─────────────────────────────────────────────────────────
         public readonly string $lightBg       = '#f9fafb',   // gray-50
         public readonly string $lightSurface  = '#ffffff',   // white
@@ -1459,16 +1459,16 @@ final class InstallerTheme
         public readonly string $lightTextMuted= '#6b7280',   // gray-500
         public readonly string $lightTextDim  = '#9ca3af',   // gray-400
         // ── Brand (shared across modes) ────────────────────────────────────────
-        public readonly string $primary       = '#2563eb',   // blue-600
-        public readonly string $primaryH      = '#1d4ed8',   // blue-700
-        public readonly string $primaryDimDark= '#1e3a8a',   // blue-900 (dark bg)
+        public readonly string $primary       = '#3b82f6',   // blue-500 — match landing
+        public readonly string $primaryH      = '#2563eb',   // blue-600
+        public readonly string $primaryDimDark= 'rgba(59,130,246,.12)',  // subtle blue tint, neutral base
         public readonly string $primaryDimLight='#dbeafe',   // blue-100 (light bg)
         public readonly string $accent        = '#0891b2',   // cyan-600
         public readonly string $success       = '#16a34a',   // green-600
         public readonly string $warning       = '#d97706',   // amber-600
         public readonly string $danger        = '#dc2626',   // red-600
         // ── Semantic overrides for dark mode readability ────────────────────────
-        public readonly string $darkPrimaryH  = '#60a5fa',   // blue-400 (lighter on dark)
+        public readonly string $darkPrimaryH  = '#3b82f6',   // blue-500 — match landing
         public readonly string $darkAccent    = '#22d3ee',   // cyan-400
         public readonly string $darkSuccess   = '#4ade80',   // green-400
         public readonly string $darkWarning   = '#fbbf24',   // amber-400
@@ -1500,7 +1500,7 @@ final class InstallerTheme
             "--text-muted:{$this->darkTextMuted};",
             "--text-dim:{$this->darkTextDim};",
             "--mono:'JetBrains Mono',monospace;",
-            "--sans:'Inter',system-ui,sans-serif;",
+            "--sans:'Space Grotesk','Inter',system-ui,sans-serif;",
             "--r:12px;--r-sm:8px;--r-xs:5px;",
             "--shadow:0 4px 32px rgba(0,0,0,.6);",
             "--glow:0 0 0 1px rgba(37,99,235,.35),0 0 20px rgba(37,99,235,.15);",
@@ -1614,8 +1614,18 @@ function htmlRequirementBadge(string $label, bool $ok, ?string $value = null): s
 
 final class InstallerKernel
 {
-    private const string LOGO_ICON     = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/identity/appWebServer.png';
-    private const string LOGO_WORDMARK = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/identity/logo-webkernel-darkmode.png';
+    // Webkernel brand assets
+    private const string LOGO_LIGHT    = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/logo.png';
+    private const string LOGO_DARK     = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/logo-dark.png';
+    private const string FAVICON       = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/favicon.ico.png';
+    // Numerimondes brand assets
+    private const string NM_LOGO_LIGHT = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/numerimondes/MARS2026_REBRAND/logo-officiel.png';
+    private const string NM_LOGO_DARK  = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/numerimondes/MARS2026_REBRAND/logo-for-dark-mode.png';
+    // Webkernel project links
+    private const string PACKAGE_NAME  = 'webkernel/webkernel';
+    private const string URL_GITHUB    = 'https://github.com/webkernelphp/webkernel';
+    private const string URL_PACKAGIST = 'https://packagist.org/packages/webkernel/webkernel';
+    private const string URL_DOCS      = 'https://webkernelphp.com/docs';
 
     private FilesystemSessionStorage $storage;
     private InstallerPipeline $pipeline;
@@ -1703,8 +1713,33 @@ final class InstallerKernel
     // HTTP
     // -------------------------------------------------------------------------
 
+    private function ensureHtaccess(): void
+    {
+        $file = __DIR__ . '/.htaccess';
+        $rule = 'RewriteRule ^ index.php [L,QSA]';
+        $block = "Options -Indexes\n\nRewriteEngine On\n\n"
+               . "# Already a real file or directory — serve it directly\n"
+               . "RewriteCond %{REQUEST_FILENAME} !-f\n"
+               . "RewriteCond %{REQUEST_FILENAME} !-d\n\n"
+               . "# Route everything else to index.php\n"
+               . "RewriteRule ^ index.php [L,QSA]\n";
+
+        if (!file_exists($file)) {
+            @file_put_contents($file, $block, LOCK_EX);
+            return;
+        }
+        $current = (string) file_get_contents($file);
+        if (str_contains($current, $rule)) {
+            return; // already present — nothing to do
+        }
+        // Append our block cleanly
+        @file_put_contents($file, rtrim($current) . "\n\n# Webkernel routing\n" . $block, LOCK_EX);
+    }
+
     private function runHttp(): void
     {
+        $this->ensureHtaccess();
+
         // Buffer everything — stray notices/warnings must never corrupt JSON responses.
         ob_start();
 
@@ -2077,7 +2112,10 @@ final class InstallerKernel
 
     private function viewLock(): string
     {
-        $logoWordmark = htmlspecialchars(self::LOGO_WORDMARK);
+        $logoPicture  = '<picture style="display:block;text-align:center">'
+            . '<source media="(prefers-color-scheme: light)" srcset="' . htmlspecialchars(self::LOGO_LIGHT) . '">'
+            . '<img src="' . htmlspecialchars(self::LOGO_DARK) . '" alt="Webkernel" style="height:36px" onerror="this.style.display=\'none\'">'
+            . '</picture>';
         $theme        = InstallerTheme::defaults();
         $darkCss      = $theme->darkCssVars();
         $lightCss     = $theme->lightCssVars();
@@ -2126,7 +2164,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-
 <div class="wrap">
   <div class="box">
     <div style="text-align:center;margin-bottom:22px">
-      <img src="{$logoWordmark}" alt="Webkernel" style="height:36px" onerror="this.style.display='none'"/>
+      {$logoPicture}
     </div>
     <div id="pw-panel">
       <div style="font-size:16px;font-weight:600;text-align:center;margin-bottom:3px">Access restricted</div>
@@ -2196,6 +2234,9 @@ LOCKHTML;
             ['label' => 'ext-mbstring',  'ok' => extension_loaded('mbstring'),  'val' => null],
             ['label' => 'ext-pdo',       'ok' => extension_loaded('pdo'),       'val' => null],
             ['label' => 'ext-tokenizer', 'ok' => extension_loaded('tokenizer'), 'val' => null],
+            ['label' => 'proc_open',     'ok' => function_exists('proc_open'),             'val' => null],
+            ['label' => 'random_bytes',  'ok' => function_exists('random_bytes'),           'val' => null], // @disregard P1010
+            ['label' => 'openssl_rand',  'ok' => function_exists('openssl_random_pseudo_bytes'), 'val' => null],
         ];
 
         $html = '';
@@ -2221,8 +2262,17 @@ LOCKHTML;
         $theme        = InstallerTheme::defaults();
         $darkCss      = $theme->darkCssVars();
         $lightCss     = $theme->lightCssVars();
-        $logoIcon     = htmlspecialchars(self::LOGO_ICON);
-        $logoWordmark = htmlspecialchars(self::LOGO_WORDMARK);
+        $faviconUrl   = htmlspecialchars(self::FAVICON);
+        $logoLight    = htmlspecialchars(self::LOGO_LIGHT);
+        $logoDark     = htmlspecialchars(self::LOGO_DARK);
+        $logoPicture  = '<picture>'
+            . '<source media="(prefers-color-scheme: light)" srcset="' . htmlspecialchars(self::LOGO_LIGHT) . '">'
+            . '<img src="' . htmlspecialchars(self::LOGO_DARK) . '" alt="Webkernel" onerror="this.style.display=\'none\'">'
+            . '</picture>';
+        $packageName  = htmlspecialchars(self::PACKAGE_NAME);
+        $urlGithub    = htmlspecialchars(self::URL_GITHUB);
+        $urlPackagist = htmlspecialchars(self::URL_PACKAGIST);
+        $urlDocs      = htmlspecialchars(self::URL_DOCS);
 
         return <<<HTML
 <!DOCTYPE html>
@@ -2231,10 +2281,11 @@ LOCKHTML;
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Webkernel Installer</title>
+<link rel="icon" type="image/png" href="{$faviconUrl}"/>
 <script>(function(){try{if(localStorage.getItem('wk_theme')==='light')document.documentElement.classList.add('light');}catch(_){}})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{{$darkCss}}
@@ -2243,7 +2294,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50}
 .topbar-brand{display:flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0}
 .topbar-logo{height:26px;width:auto;border-radius:4px}
-.topbar-name{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.3px}
+.topbar-favicon{height:20px;width:auto;flex-shrink:0}
+.topbar-name{font-size:14px;font-weight:500;color:var(--text);letter-spacing:-.2px}
+.topbar-name #topbar-codename{color:var(--primary-h);font-weight:600}
 .badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;flex-shrink:0}
 .badge-primary{background:var(--primary-dim);color:var(--primary-h)}
 .badge-mono{background:var(--surface-2);border:1px solid var(--border);color:var(--text-dim);font-family:var(--mono);font-weight:400;border-radius:5px}
@@ -2388,14 +2441,12 @@ html.light .modal-bg{background:rgba(0,0,0,.35)}
 
   <!-- Topbar -->
   <header class="topbar">
-    <a class="topbar-brand" href="https://github.com/webkernelphp/webkernel" target="_blank" rel="noopener">
-      <img class="topbar-logo" src="{$logoIcon}" alt="Webkernel" onerror="this.style.display='none'"/>
-      <span class="topbar-name">Webkernel</span>
+    <a class="topbar-brand" href="{$urlGithub}" target="_blank" rel="noopener">
+      <img class="topbar-favicon" src="{$faviconUrl}" alt="" onerror="this.style.display='none'"/>
+      <span class="topbar-name">Webkernel&#8482; <span id="topbar-codename">Waterfall</span> &mdash; Installer v{$installerVer}</span>
     </a>
-    <span class="badge badge-primary">Installer</span>
-    <span class="badge badge-mono">v{$installerVer}</span>
-    <span class="badge badge-accent" id="topbar-codename">Waterfall series</span>
     <span class="topbar-spacer"></span>
+    <span class="badge badge-mono" style="font-size:11px">PHP {$phpVer}</span>
     <button class="icon-btn" id="theme-btn" title="Toggle theme">
       <svg id="theme-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       <svg id="theme-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -2403,7 +2454,6 @@ html.light .modal-bg{background:rgba(0,0,0,.35)}
     <button class="icon-btn" id="mob-menu-btn" aria-label="Menu">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <span class="badge badge-mono" style="font-size:11px">PHP {$phpVer}</span>
   </header>
 
   <!-- Mobile overlay -->
@@ -2467,14 +2517,14 @@ html.light .modal-bg{background:rgba(0,0,0,.35)}
       <div class="card" id="panel-welcome" style="display:none">
         <div class="ch">
           <div class="ci"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
-          <div><div class="ct">Welcome to Webkernel Installer</div><div class="cs">Package webkernel/webkernel via Composer</div></div>
+          <div><div class="ct">Welcome to Webkernel Installer</div><div class="cs">Package {$packageName} via Composer</div></div>
         </div>
         <div class="cb">
-          <img src="{$logoWordmark}" alt="Webkernel" style="height:30px;margin-bottom:16px;display:block" onerror="this.style.display='none'"/>
-          <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;line-height:1.7">This installer will download and configure <strong style="color:var(--text)">webkernel/webkernel</strong> into your target directory. Sessions persist on disk — close this tab and resume later.</p>
+          <div style="margin-bottom:16px"><picture><source media="(prefers-color-scheme: light)" srcset="{$logoLight}"><img src="{$logoDark}" alt="Webkernel" style="height:32px" onerror="this.style.display='none'"></picture></div>
+          <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;line-height:1.7">This installer will download and configure <strong style="color:var(--text)">{$packageName}</strong> into your target directory.<br>Sessions persist on disk — close this tab and resume later.</p>
           <div class="info-cards">
-            <div class="info-card"><div class="info-card-label">Repository</div><a href="https://github.com/webkernelphp/webkernel" target="_blank" style="text-decoration:none" class="info-card-val">github.com/webkernelphp</a></div>
-            <div class="info-card"><div class="info-card-label">Package</div><a href="https://packagist.org/packages/webkernel/webkernel" target="_blank" style="text-decoration:none" class="info-card-val">webkernel/webkernel</a></div>
+            <div class="info-card"><div class="info-card-label">Repository</div><a href="{$urlGithub}" target="_blank" style="text-decoration:none" class="info-card-val">github.com/webkernelphp</a></div>
+            <div class="info-card"><div class="info-card-label">Package</div><a href="{$urlPackagist}" target="_blank" style="text-decoration:none" class="info-card-val">{$packageName}</a></div>
           </div>
           <!-- Security shortcut — opens modal -->
           <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:11px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="wk.openPwModal()">
@@ -3286,9 +3336,11 @@ HTML;
         $year    = date('Y');
         $host    = htmlspecialchars($_SERVER['HTTP_HOST'] ?? 'this domain', ENT_QUOTES, 'UTF-8');
 
-        $logoLight   = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/logo.png';
-        $logoDark    = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/logo-dark.png';
-        $faviconUrl  = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/favicon.ico.png';
+        $logoLight   = self::LOGO_LIGHT;
+        $logoDark    = self::LOGO_DARK;
+        $faviconUrl  = self::FAVICON;
+        $nmLogoLight = self::NM_LOGO_LIGHT;
+        $nmLogoDark  = self::NM_LOGO_DARK;
 
         header('Content-Type: text/html; charset=UTF-8');
         header('Cache-Control: no-store');
@@ -3469,8 +3521,8 @@ HTML;
       <div class="brand-by">
         <span>by</span>
         <picture>
-          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/numerimondes/MARS2026_REBRAND/logo-officiel.png">
-          <img src="https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/numerimondes/MARS2026_REBRAND/logo-for-dark-mode.png" alt="Numerimondes">
+          <source media="(prefers-color-scheme: light)" srcset="{$nmLogoLight}">
+          <img src="{$nmLogoDark}" alt="Numerimondes">
         </picture>
       </div>
     </div>
