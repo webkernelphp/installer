@@ -1,5 +1,4 @@
-<?php
-declare(strict_types=1);
+<?php declare(strict_types=1);
 
 /**
  * Webkernel Installer
@@ -14,9 +13,11 @@ declare(strict_types=1);
  * @requires   PHP 8.4+
  */
 
-// ---------------------------------------------------------------------------
-// Bootstrap: enforce PHP version before any class declarations
-// ---------------------------------------------------------------------------
+ /* --- Installer version & Webkernel codenames -------------------------------*/
+
+const WEBKERNEL_INSTALLER_VERSION = '0.1.0';
+
+/* --- Bootstrap: enforce PHP version before any class declarations -----------*/
 
 if (PHP_VERSION_ID < 80400) {
     $msg = sprintf('Webkernel requires PHP 8.4+. Found: %s', PHP_VERSION);
@@ -30,11 +31,6 @@ if (PHP_VERSION_ID < 80400) {
     exit(1);
 }
 
-// ---------------------------------------------------------------------------
-// Installer version & Webkernel codenames
-// ---------------------------------------------------------------------------
-
-const WEBKERNEL_INSTALLER_VERSION = '0.1.0';
 
 /**
  * Returns the codename series for a given Webkernel major version.
@@ -272,7 +268,7 @@ final class SecurityToken
 
     public static function generate(): self
     {
-        return new self(bin2hex(random_bytes(32)), time());
+        return new self(bin2hex(random_bytes(32)), time()); // @disregard P1010
     }
 
     public static function fromRaw(string $value, int $createdAt): self
@@ -343,7 +339,7 @@ final class InstallerSession
 
     public static function create(InstallPath $paths): self
     {
-        $id = bin2hex(random_bytes(16));
+        $id = bin2hex(random_bytes(16)); // @disregard P1010
         return new self(
             id:           $id,
             phase:        InstallerPhase::Preflight,
@@ -504,7 +500,7 @@ final class InstallerEnvironment
     public static function resolveTargetDirectory(): string
     {
         if (self::isCli()) {
-            global $argv;
+            global $argv; // @disregard P1008
             if (is_array($argv)) {
                 foreach ($argv as $i => $arg) {
                     if ($arg === '--dir' && isset($argv[$i + 1])) {
@@ -514,7 +510,17 @@ final class InstallerEnvironment
             }
             return getcwd() ?: '/tmp/webkernel';
         }
-        return dirname((string) ($_SERVER['SCRIPT_FILENAME'] ?? __FILE__));
+        // Walk up from common web-root subdirectory names so the installer
+        // targets the actual project root, not the public/ folder.
+        $scriptDir = dirname((string) ($_SERVER['SCRIPT_FILENAME'] ?? __FILE__));
+        $webRoots  = ['public', 'public_html', 'htdocs', 'www', 'web'];
+        if (in_array(strtolower(basename($scriptDir)), $webRoots, true)) {
+            $parent = dirname($scriptDir);
+            if ($parent !== $scriptDir && is_dir($parent)) {
+                return $parent;
+            }
+        }
+        return $scriptDir;
     }
 
     public static function phpBinary(): string
@@ -1356,6 +1362,7 @@ final class AccessGate
 
     public static function generateRecoveryKey(InstallPath $paths): string
     {
+    	/* @disregard */
         $key = strtoupper(implode('-', str_split(bin2hex(random_bytes(12)), 6)));
         // Store bcrypt of key so brute-force via filesystem is not trivial
         $keyHash = password_hash($key, PASSWORD_BCRYPT);
@@ -1410,7 +1417,7 @@ final class HttpRequest
                 }
             }
             if (empty($body)) {
-                $body = $_POST;
+                $body = $_POST; // @disregard P1008
             }
         }
 
@@ -1701,6 +1708,22 @@ final class InstallerKernel
         // Buffer everything — stray notices/warnings must never corrupt JSON responses.
         ob_start();
 
+        // ── URL routing ──────────────────────────────────────────────────────
+        $urlPath = rtrim(
+            parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
+            '/'
+        );
+        if ($urlPath === '' || $urlPath === '/') {
+            ob_end_clean();
+            $this->sendLandingPage();
+        }
+        // Any path other than /install or /fresh-install also goes to landing
+        if (!in_array($urlPath, ['/install', '/fresh-install'], true)) {
+            ob_end_clean();
+            $this->sendLandingPage();
+        }
+        // ── end routing ──────────────────────────────────────────────────────
+
         $request = HttpRequest::fromGlobals();
         $paths   = InstallPath::resolve(InstallerEnvironment::resolveTargetDirectory());
 
@@ -1736,6 +1759,7 @@ final class InstallerKernel
         $this->sendHtml($paths);
     }
 
+    /** @disregard P1075 — every branch calls $this->jsonOut() which is `never` */
     private function handleApi(HttpRequest $request, InstallPath $paths): never
     {
         $gated = AccessGate::isEnabled($paths);
@@ -3251,6 +3275,231 @@ document.addEventListener('DOMContentLoaded', () => {
 </html>
 
 HTML;
+    }
+
+    // -------------------------------------------------------------------------
+    // Landing page (served at /)
+    // -------------------------------------------------------------------------
+
+    private function sendLandingPage(): never
+    {
+        $year    = date('Y');
+        $host    = htmlspecialchars($_SERVER['HTTP_HOST'] ?? 'this domain', ENT_QUOTES, 'UTF-8');
+
+        $logoLight   = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/logo.png';
+        $logoDark    = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/logo-dark.png';
+        $faviconUrl  = 'https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/webkernel/favicon.ico.png';
+
+        header('Content-Type: text/html; charset=UTF-8');
+        header('Cache-Control: no-store');
+        echo <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Webkernel — Demo Environment</title>
+<link rel="icon" type="image/png" href="{$faviconUrl}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #000;
+    --card:      #0d0d0d;
+    --card-head: #080808;
+    --border:    #1a1a1a;
+    --accent:    #3b82f6;
+    --accent-bg: rgba(59,130,246,.1);
+    --text:      #d0d0d0;
+    --muted:     #555;
+    --dim:       #888;
+  }
+
+  html, body {
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 540px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  /* ── header ── */
+  .card-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    background: var(--card-head);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    gap: 8px;
+  }
+  .card-header .col { display: flex; flex-direction: column; gap: 2px; }
+  .col-label  { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .col-value  { font-size: 12px; font-weight: 500; }
+  .col-value.ok     { color: #22c55e; }
+  .col-value.demo   { color: var(--accent); }
+  .col-value.notice { color: #f59e0b; }
+
+  /* ── body ── */
+  .card-body { padding: 24px 20px; }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .brand-logo {
+    height: 32px;
+    width: auto;
+    display: block;
+  }
+  .brand-by {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+  }
+  .brand-by span {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+  }
+  .brand-by picture,
+  .brand-by img {
+    height: 20px;
+    width: auto;
+    display: block;
+    opacity: .75;
+  }
+
+  .incident-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 12px;
+    letter-spacing: -.01em;
+  }
+
+  .msg-block {
+    background: var(--accent-bg);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 4px 4px 0;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--dim);
+    margin-bottom: 20px;
+  }
+  .msg-block strong { color: var(--text); }
+
+  .step-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .step-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--dim);
+  }
+  .step-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+
+  /* ── footer ── */
+  .card-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="card-header">
+    <div class="col">
+      <span class="col-label">Status</span>
+      <span class="col-value ok">Operational</span>
+    </div>
+    <div class="col">
+      <span class="col-label">Environment</span>
+      <span class="col-value demo">Demo</span>
+    </div>
+    <div class="col">
+      <span class="col-label">Purpose</span>
+      <span class="col-value notice">Testing only</span>
+    </div>
+  </div>
+
+  <div class="card-body">
+    <div class="brand">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="{$logoLight}">
+        <img src="{$logoDark}" alt="Webkernel" class="brand-logo">
+      </picture>
+      <div class="brand-by">
+        <span>by</span>
+        <picture>
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/numerimondes/MARS2026_REBRAND/logo-officiel.png">
+          <img src="https://raw.githubusercontent.com/numerimondes/.github/refs/heads/main/assets/brands/numerimondes/MARS2026_REBRAND/logo-for-dark-mode.png" alt="Numerimondes">
+        </picture>
+      </div>
+    </div>
+
+    <p class="incident-title">{$host} — demo &amp; testing environment.</p>
+
+    <div class="msg-block">
+      <strong>Not a production environment.</strong> This instance runs
+      Webkernel (by Numerimondes) for evaluation and demonstration purposes
+      only. Data is non-persistent and may be reset without notice.
+    </div>
+
+    <ul class="step-list">
+      <li><span class="step-dot"></span> This domain is reserved for internal demo use</li>
+      <li><span class="step-dot"></span> No user data is stored or processed here</li>
+      <li><span class="step-dot"></span> All activity on this domain is logged for security purposes</li>
+    </ul>
+  </div>
+
+  <div class="card-footer">
+    <span>Webkernel &mdash; by Numerimondes</span>
+    <span>&copy; {$year}</span>
+  </div>
+
+</div>
+</body>
+</html>
+HTML;
+        exit(0);
     }
 }
 
